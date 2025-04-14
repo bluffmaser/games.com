@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe with Unbeatable AI</title>
+ <style>* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 2rem;
+}
+
+.status {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    height: 30px;
+    font-weight: bold;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-gap: 10px;
+    margin-bottom: 20px;
+}
+
+.cell {
+    background-color: #f9f9f9;
+    border: 2px solid #ddd;
+    border-radius: 5px;
+    height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 2.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cell:hover {
+    background-color: #f0f0f0;
+}
+
+.cell.x {
+    color: #2980b9;
+}
+
+.cell.o {
+    color: #e74c3c;
+}
+
+button {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+button:hover {
+    background-color: #2980b9;
+}
+
+.info {
+    color: #666;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.player-x {
+    color: #2980b9;
+    font-weight: bold;
+}
+
+.player-o {
+    color: #e74c3c;
+    font-weight: bold;
+}
+
+.won {
+    color: #27ae60;
+}
+
+.lost {
+    color: #e74c3c;
+}
+
+.draw {
+    color: #3498db;
+}
+
+@media (max-width: 400px) {
+    .cell {
+        height: 80px;
+        font-size: 2rem;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    .status {
+        font-size: 1rem;
+    }
+}
+</style>
+</head>
+<body>
+    <div class="container">
+        <h1>Tic Tac Toe</h1>
+        
+        <div id="status-message" class="status">Your turn (X)</div>
+        
+        <div class="board" id="board">
+            <div class="cell" data-index="0"></div>
+            <div class="cell" data-index="1"></div>
+            <div class="cell" data-index="2"></div>
+            <div class="cell" data-index="3"></div>
+            <div class="cell" data-index="4"></div>
+            <div class="cell" data-index="5"></div>
+            <div class="cell" data-index="6"></div>
+            <div class="cell" data-index="7"></div>
+            <div class="cell" data-index="8"></div>
+        </div>
+        
+        <button id="reset-button">Reset Game</button>
+        
+        <div class="info">
+            <p>You are <span class="player-x">X</span>, the AI is <span class="player-o">O</span></p>
+            <p>The AI uses the Minimax algorithm and is unbeatable. The best you can do is a draw!</p>
+        </div>
+    </div>
+    
+   <script>document.addEventListener('DOMContentLoaded', () => {
+    // Game elements
+    const board = document.getElementById('board');
+    const cells = document.querySelectorAll('.cell');
+    const statusMessage = document.getElementById('status-message');
+    const resetButton = document.getElementById('reset-button');
+    
+    // Game state
+    let gameBoard = Array(9).fill(null);
+    let isPlayerTurn = true;
+    let gameActive = true;
+    
+    // Constants for players
+    const HUMAN_PLAYER = 'X';
+    const AI_PLAYER = 'O';
+    
+    // Winning combinations
+    const WINNING_COMBINATIONS = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+        [0, 4, 8], [2, 4, 6]             // diagonals
+    ];
+    
+    // Initialize the game
+    function initGame() {
+        gameBoard = Array(9).fill(null);
+        isPlayerTurn = true;
+        gameActive = true;
+        
+        // Clear the board
+        cells.forEach(cell => {
+            cell.textContent = '';
+            cell.classList.remove('x', 'o');
+        });
+        
+        // Reset status message
+        updateStatus('playing');
+    }
+    
+    // Update the status message
+    function updateStatus(state) {
+        switch(state) {
+            case 'playing':
+                statusMessage.textContent = isPlayerTurn ? 'Your turn (X)' : 'AI thinking... (O)';
+                statusMessage.className = 'status';
+                break;
+            case 'won':
+                statusMessage.textContent = 'You won!';
+                statusMessage.className = 'status won';
+                break;
+            case 'lost':
+                statusMessage.textContent = 'You lost!';
+                statusMessage.className = 'status lost';
+                break;
+            case 'draw':
+                statusMessage.textContent = "It's a draw!";
+                statusMessage.className = 'status draw';
+                break;
+        }
+    }
+    
+    // Check if there's a winner
+    function checkWinner(board) {
+        for (const combo of WINNING_COMBINATIONS) {
+            const [a, b, c] = combo;
+            if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                return board[a];
+            }
+        }
+        return null;
+    }
+    
+    // Check if the board is full
+    function isBoardFull(board) {
+        return board.every(cell => cell !== null);
+    }
+    
+    // Handle player's move
+    function handleCellClick(index) {
+        // Ignore if cell is already filled or it's not player's turn or game is over
+        if (!isPlayerTurn || gameBoard[index] || !gameActive) return;
+        
+        // Update the board with player's move
+        gameBoard[index] = HUMAN_PLAYER;
+        cells[index].textContent = HUMAN_PLAYER;
+        cells[index].classList.add('x');
+        
+        // Check if player won or if it's a draw
+        const winner = checkWinner(gameBoard);
+        if (winner) {
+            gameActive = false;
+            updateStatus('won');
+            return;
+        }
+        
+        if (isBoardFull(gameBoard)) {
+            gameActive = false;
+            updateStatus('draw');
+            return;
+        }
+        
+        // AI's turn
+        isPlayerTurn = false;
+        updateStatus('playing');
+        
+        // Add a small delay before AI makes a move
+        setTimeout(makeAIMove, 500);
+    }
+    
+    // Minimax algorithm for AI
+    function minimax(board, depth, isMaximizing) {
+        const winner = checkWinner(board);
+        
+        // Terminal states
+        if (winner === AI_PLAYER) return 10 - depth;
+        if (winner === HUMAN_PLAYER) return depth - 10;
+        if (isBoardFull(board)) return 0;
+        
+        if (isMaximizing) {
+            let bestScore = -Infinity;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === null) {
+                    board[i] = AI_PLAYER;
+                    const score = minimax(board, depth + 1, false);
+                    board[i] = null;
+                    bestScore = Math.max(score, bestScore);
+                }
+            }
+            return bestScore;
+        } else {
+            let bestScore = Infinity;
+            for (let i = 0; i < 9; i++) {
+                if (board[i] === null) {
+                    board[i] = HUMAN_PLAYER;
+                    const score = minimax(board, depth + 1, true);
+                    board[i] = null;
+                    bestScore = Math.min(score, bestScore);
+                }
+            }
+            return bestScore;
+        }
+    }
+    
+    // Make AI move
+    function makeAIMove() {
+        if (!gameActive) return;
+        
+        let bestScore = -Infinity;
+        let bestMove = -1;
+        
+        // Find the best move using minimax
+        for (let i = 0; i < 9; i++) {
+            if (gameBoard[i] === null) {
+                gameBoard[i] = AI_PLAYER;
+                const score = minimax(gameBoard, 0, false);
+                gameBoard[i] = null;
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = i;
+                }
+            }
+        }
+        
+        // Make the best move
+        if (bestMove !== -1) {
+            gameBoard[bestMove] = AI_PLAYER;
+            cells[bestMove].textContent = AI_PLAYER;
+            cells[bestMove].classList.add('o');
+            
+            // Check if AI won or if it's a draw
+            const winner = checkWinner(gameBoard);
+            if (winner) {
+                gameActive = false;
+                updateStatus('lost');
+                return;
+            }
+            
+            if (isBoardFull(gameBoard)) {
+                gameActive = false;
+                updateStatus('draw');
+                return;
+            }
+            
+            // Player's turn
+            isPlayerTurn = true;
+            updateStatus('playing');
+        }
+    }
+    
+    // Event listeners
+    cells.forEach(cell => {
+        cell.addEventListener('click', () => {
+            const index = parseInt(cell.getAttribute('data-index'));
+            handleCellClick(index);
+        });
+    });
+    
+    resetButton.addEventListener('click', initGame);
+    
+    // Initialize the game
+    initGame();
+});
+</script>
+</body>
+</html>

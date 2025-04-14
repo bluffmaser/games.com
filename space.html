@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Shooter Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: black; overflow: hidden; font-family: sans-serif; }
+    canvas { display: block; margin: auto; background: #000; border: 2px solid white; }
+    #hud {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      font-size: 20px;
+      z-index: 10;
+    }
+    #game-over {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: red;
+      font-size: 40px;
+      text-align: center;
+    }
+    #restart {
+      color: white;
+      background: #444;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    Score: <span id="score">0</span> | Lives: <span id="lives">3</span>
+  </div>
+  <div id="game-over">
+    <div>Game Over</div>
+    <div id="restart">Restart</div>
+  </div>
+  <canvas id="gameCanvas" width="480" height="640"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreDisplay = document.getElementById("score");
+    const livesDisplay = document.getElementById("lives");
+    const gameOverScreen = document.getElementById("game-over");
+    const restartBtn = document.getElementById("restart");
+
+    const spaceship = {
+      x: canvas.width / 2 - 20,
+      y: canvas.height - 60,
+      width: 40,
+      height: 40,
+      speed: 5,
+      color: "white",
+    };
+
+    let bullets = [];
+    let enemies = [];
+    let enemyBullets = [];
+    let powerUps = [];
+    let score = 0;
+    let lives = 3;
+    let keys = {};
+    let gameOver = false;
+    let shootCooldown = 0;
+    let shootSound = new Audio("https://www.soundjay.com/mechanical/sounds/mechanical-gunshot-1.mp3");
+
+    document.addEventListener("keydown", (e) => {
+      if (["ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
+      keys[e.key] = true;
+    });
+
+    document.addEventListener("keyup", (e) => {
+      if (["ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
+      keys[e.key] = false;
+    });
+
+    function drawSpaceship() {
+      ctx.fillStyle = spaceship.color;
+      ctx.fillRect(spaceship.x, spaceship.y, spaceship.width, spaceship.height);
+    }
+
+    function drawBullets() {
+      ctx.fillStyle = "red";
+      bullets.forEach((b) => {
+        ctx.fillRect(b.x, b.y, 4, 10);
+        b.y -= 8;
+      });
+      bullets = bullets.filter((b) => b.y > 0);
+    }
+
+    function spawnEnemy() {
+      if (Math.random() < 0.02) {
+        enemies.push({
+          x: Math.random() * (canvas.width - 30),
+          y: -30,
+          width: 30,
+          height: 30,
+          speed: 1 + Math.random() * 2,
+          shootTimer: 0
+        });
+      }
+    }
+
+    function drawEnemies() {
+      ctx.fillStyle = "lime";
+      enemies.forEach((e, i) => {
+        ctx.fillRect(e.x, e.y, e.width, e.height);
+        e.y += e.speed;
+
+        e.shootTimer++;
+        if (e.shootTimer > 100) {
+          enemyBullets.push({ x: e.x + e.width / 2 - 2, y: e.y + e.height });
+          e.shootTimer = 0;
+        }
+
+        if (e.y + e.height > canvas.height) {
+          enemies.splice(i, 1);
+          lives--;
+          updateHUD();
+          if (lives <= 0) endGame();
+        }
+      });
+    }
+
+    function drawEnemyBullets() {
+      ctx.fillStyle = "orange";
+      enemyBullets.forEach((b, i) => {
+        ctx.fillRect(b.x, b.y, 4, 10);
+        b.y += 4;
+
+        if (
+          b.x < spaceship.x + spaceship.width &&
+          b.x + 4 > spaceship.x &&
+          b.y < spaceship.y + spaceship.height &&
+          b.y + 10 > spaceship.y
+        ) {
+          enemyBullets.splice(i, 1);
+          lives--;
+          updateHUD();
+          if (lives <= 0) endGame();
+        }
+      });
+      enemyBullets = enemyBullets.filter((b) => b.y < canvas.height);
+    }
+
+    function handleCollisions() {
+      bullets.forEach((b, bi) => {
+        enemies.forEach((e, ei) => {
+          if (
+            b.x < e.x + e.width &&
+            b.x + 4 > e.x &&
+            b.y < e.y + e.height &&
+            b.y + 10 > e.y
+          ) {
+            bullets.splice(bi, 1);
+            enemies.splice(ei, 1);
+            score += 10;
+            updateHUD();
+          }
+        });
+      });
+    }
+
+    function updateHUD() {
+      scoreDisplay.textContent = score;
+      livesDisplay.textContent = lives;
+    }
+
+    function endGame() {
+      gameOver = true;
+      gameOverScreen.style.display = "block";
+    }
+
+    function drawPowerUps() {
+      ctx.fillStyle = "yellow";
+      powerUps.forEach((p, i) => {
+        ctx.fillRect(p.x, p.y, 10, 10);
+        p.y += 2;
+
+        if (
+          p.x < spaceship.x + spaceship.width &&
+          p.x + 10 > spaceship.x &&
+          p.y < spaceship.y + spaceship.height &&
+          p.y + 10 > spaceship.y
+        ) {
+          powerUps.splice(i, 1);
+          lives++;
+          updateHUD();
+        }
+      });
+
+      if (Math.random() < 0.005) {
+        powerUps.push({
+          x: Math.random() * (canvas.width - 10),
+          y: -10,
+        });
+      }
+    }
+
+    function updateGame() {
+      if (gameOver) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (keys["ArrowLeft"] && spaceship.x > 0) spaceship.x -= spaceship.speed;
+      if (keys["ArrowRight"] && spaceship.x + spaceship.width < canvas.width) spaceship.x += spaceship.speed;
+      if (keys[" "] && shootCooldown <= 0) {
+        bullets.push({ x: spaceship.x + spaceship.width / 2 - 2, y: spaceship.y });
+        shootSound.currentTime = 0;
+        shootSound.play();
+        shootCooldown = 10;
+      }
+      if (shootCooldown > 0) shootCooldown--;
+
+      drawSpaceship();
+      drawBullets();
+      spawnEnemy();
+      drawEnemies();
+      drawEnemyBullets();
+      handleCollisions();
+      drawPowerUps();
+
+      requestAnimationFrame(updateGame);
+    }
+
+    restartBtn.onclick = () => {
+      score = 0;
+      lives = 3;
+      bullets = [];
+      enemies = [];
+      enemyBullets = [];
+      powerUps = [];
+      spaceship.x = canvas.width / 2 - 20;
+      gameOver = false;
+      gameOverScreen.style.display = "none";
+      updateHUD();
+      updateGame();
+    };
+
+    updateHUD();
+    updateGame();
+  </script>
+</body>
+</html>

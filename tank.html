@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tank Battle - 2 Player or AI</title>
+  <style>
+    body {
+      margin: 0;
+      background: #1a1a1a;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #34495e;
+      border: 4px solid #2ecc71;
+    }
+    #startScreen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      text-align: center;
+    }
+    #startScreen button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      font-size: 18px;
+      background: #2ecc71;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+    #startScreen button:hover {
+      background: #27ae60;
+    }
+  </style>
+</head>
+<body>
+
+<div id="startScreen">
+  <h1>🚀 Tank Battle: Player vs AI / Human</h1>
+  <p><strong>Controls:</strong></p>
+  <div style="text-align:left; max-width:600px;">
+    <h3>Player 1 (Green):</h3>
+    <ul>
+      <li>Move: W A S D</li>
+      <li>Aim: Mouse</li>
+      <li>Shoot: Left Click</li>
+    </ul>
+    <h3>Player 2 (Red):</h3>
+    <ul>
+      <li>Move: Arrow Keys</li>
+      <li>Rotate Turret: K (left), L (right)</li>
+      <li>Shoot: Enter</li>
+    </ul>
+  </div>
+
+  <div style="margin: 20px;">
+    <label style="font-size: 18px;">Choose Opponent: </label>
+    <select id="modeSelect" style="padding: 6px; font-size: 16px;">
+      <option value="ai">AI Opponent</option>
+      <option value="human">Human Player 2</option>
+    </select>
+  </div>
+  
+  <button onclick="startGame()">Start Game</button>
+  
+</div>
+
+<canvas id="gameCanvas" width="900" height="600"></canvas>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+let keys = {};
+let mouse = { x: 0, y: 0 };
+let useAI = false; // Toggle AI or manual Player 2
+let gameStarted = false;
+
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+});
+canvas.addEventListener("click", () => {
+  if (gameStarted && player1.bullets.length < 10) fireBullet(player1, mouse.x, mouse.y);
+});
+
+document.addEventListener("keydown", e => {
+  if (!useAI && e.key === "Enter" && player2.bullets.length < 10) {
+    const angle = player2.turretAngle;
+    fireBullet(player2, player2.x + Math.cos(angle) * 30, player2.y + Math.sin(angle) * 30, angle);
+  }
+});
+
+function createTank(x, y, color) {
+  return {
+    x, y,
+    angle: 0,
+    turretAngle: 0,
+    speed: 2.5,
+    bullets: [],
+    health: 100,
+    color,
+    cooldown: 0
+  };
+}
+
+let player1 = createTank(100, 300, "green");
+let player2 = createTank(800, 300, "red");
+
+function drawTank(tank) {
+  ctx.save();
+  ctx.translate(tank.x, tank.y);
+  ctx.rotate(tank.angle);
+
+  ctx.fillStyle = tank.color;
+  ctx.fillRect(-20, -20, 40, 40);
+
+  ctx.restore();
+
+  // Draw turret
+  ctx.save();
+  ctx.translate(tank.x, tank.y);
+  ctx.rotate(tank.turretAngle);
+  ctx.strokeStyle = "black";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(30, 0);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function fireBullet(tank, targetX, targetY, angleOverride = null) {
+  const angle = angleOverride !== null ? angleOverride : Math.atan2(targetY - tank.y, targetX - tank.x);
+  tank.bullets.push({
+    x: tank.x + Math.cos(angle) * 30,
+    y: tank.y + Math.sin(angle) * 30,
+    dx: Math.cos(angle) * 6,
+    dy: Math.sin(angle) * 6
+  });
+  tank.cooldown = 20;
+}
+
+function updateBullets(bullets, target) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    let b = bullets[i];
+    b.x += b.dx;
+    b.y += b.dy;
+
+    if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+      bullets.splice(i, 1);
+      continue;
+    }
+
+    if (
+      b.x > target.x - 20 && b.x < target.x + 20 &&
+      b.y > target.y - 20 && b.y < target.y + 20
+    ) {
+      target.health -= 10;
+      bullets.splice(i, 1);
+    }
+  }
+}
+
+function moveTank(tank, up, down, left, right) {
+  if (keys[up]) tank.y -= tank.speed;
+  if (keys[down]) tank.y += tank.speed;
+  if (keys[left]) tank.x -= tank.speed;
+  if (keys[right]) tank.x += tank.speed;
+
+  tank.x = Math.max(20, Math.min(canvas.width - 20, tank.x));
+  tank.y = Math.max(20, Math.min(canvas.height - 20, tank.y));
+}
+
+function updatePlayer1() {
+  moveTank(player1, "w", "s", "a", "d");
+  player1.angle = Math.atan2(mouse.y - player1.y, mouse.x - player1.x);
+  player1.turretAngle = player1.angle;
+  if (player1.cooldown > 0) player1.cooldown--;
+}
+
+function updatePlayer2Manual() {
+  moveTank(player2, "arrowup", "arrowdown", "arrowleft", "arrowright");
+
+  if (keys["k"]) player2.turretAngle -= 0.05;
+  if (keys["l"]) player2.turretAngle += 0.05;
+
+  player2.angle = player2.turretAngle;
+
+  if (player2.cooldown > 0) player2.cooldown--;
+}
+
+function updateAI() {
+  const dx = player1.x - player2.x;
+  const dy = player1.y - player2.y;
+  const dist = Math.hypot(dx, dy);
+
+  if (dist > 200) {
+    player2.x += (dx / dist) * player2.speed * 0.7;
+    player2.y += (dy / dist) * player2.speed * 0.7;
+  } else if (dist < 100) {
+    player2.x -= (dx / dist) * player2.speed * 0.5;
+    player2.y -= (dy / dist) * player2.speed * 0.5;
+  }
+
+  player2.turretAngle = Math.atan2(dy, dx);
+  player2.angle = player2.turretAngle;
+
+  if (player2.cooldown <= 0 && player2.bullets.length < 10) {
+    fireBullet(player2, player1.x, player1.y);
+  } else {
+    player2.cooldown--;
+  }
+}
+
+function drawBullets(bullets) {
+  ctx.fillStyle = "yellow";
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawHealth() {
+  ctx.fillStyle = "white";
+  ctx.font = "16px Arial";
+  ctx.fillText("Player 1 Health: " + player1.health, 20, 20);
+  ctx.fillText("Player 2 Health: " + player2.health, canvas.width - 160, 20);
+}
+
+function checkGameOver() {
+  if (player1.health <= 0 || player2.health <= 0) {
+    ctx.fillStyle = "white";
+    ctx.font = "40px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(player1.health <= 0 ? "Player 2 Wins!" : "Player 1 Wins!", canvas.width / 2, canvas.height / 2);
+    return true;
+  }
+  return false;
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  updatePlayer1();
+  useAI ? updateAI() : updatePlayer2Manual();
+
+  updateBullets(player1.bullets, player2);
+  updateBullets(player2.bullets, player1);
+
+  drawTank(player1);
+  drawTank(player2);
+  drawBullets(player1.bullets);
+  drawBullets(player2.bullets);
+  drawHealth();
+
+  if (!checkGameOver()) requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  const mode = document.getElementById("modeSelect").value;
+  useAI = (mode === "ai");
+
+  document.getElementById("startScreen").style.display = "none";
+  gameStarted = true;
+  player1 = createTank(100, 300, "green");
+  player2 = createTank(800, 300, "red");
+  gameLoop();
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pong with AI Opponent</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #scoreboard {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 40px;
+            font-family: 'Arial', sans-serif;
+            color: #fff;
+        }
+        #playerScore, #aiScore {
+            font-weight: bold;
+            color: #00ff00;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 20px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <button onclick="startGame()">Start Game</button>
+        <p>Use W/S keys to move the paddle. Score points by making the ball pass the opponent.</p>
+    </div>
+    <div id="gameOverScreen" style="display: none;">
+        <h2>Game Over</h2>
+        <p>Player: <span id="playerScoreText">0</span> | AI: <span id="aiScoreText">0</span></p>
+        <button onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, playerPaddle, aiPaddle, ball, topWall, bottomWall, directionalLight;
+        let playerScore = 0, aiScore = 0;
+        let ballSpeedX = 0.1, ballSpeedY = 0.1;
+        const paddleWidth = 1, paddleHeight = 5, paddleDepth = 1, ballRadius = 0.5;
+        const keys = { up: false, down: false };
+        let gameRunning = false;
+
+        function setupScene() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Add Lighting
+            directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 10).normalize();
+            scene.add(directionalLight);
+
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+
+            // Ball and paddles
+            const ballGeometry = new THREE.SphereGeometry(ballRadius);
+            const ballMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.4 });
+            ball = new THREE.Mesh(ballGeometry, ballMaterial);
+            ball.position.set(0, 0, 0);
+            ball.castShadow = true;
+            ball.receiveShadow = true;
+            scene.add(ball);
+
+            const paddleMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, metalness: 0.7, roughness: 0.3 });
+
+            playerPaddle = new THREE.Mesh(new THREE.BoxGeometry(paddleWidth, paddleHeight, paddleDepth), paddleMaterial);
+            playerPaddle.position.set(-8, 0, 0);
+            playerPaddle.castShadow = true;
+            playerPaddle.receiveShadow = true;
+            scene.add(playerPaddle);
+
+            aiPaddle = new THREE.Mesh(new THREE.BoxGeometry(paddleWidth, paddleHeight, paddleDepth), paddleMaterial);
+            aiPaddle.position.set(8, 0, 0);
+            aiPaddle.castShadow = true;
+            aiPaddle.receiveShadow = true;
+            scene.add(aiPaddle);
+
+            // Walls
+            const wallGeometry = new THREE.BoxGeometry(100, 1, 1);
+            const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            topWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            topWall.position.set(0, 6, 0);
+            scene.add(topWall);
+
+            bottomWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            bottomWall.position.set(0, -6, 0);
+            scene.add(bottomWall);
+
+            // Camera setup
+            camera.position.z = 15;
+            camera.position.y = 0;
+        }
+
+        function updateScore() {
+            document.getElementById('playerScoreText').textContent = playerScore;
+            document.getElementById('aiScoreText').textContent = aiScore;
+        }
+
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            gameRunning = true;
+            animate();
+        }
+
+        function restartGame() {
+            playerScore = 0;
+            aiScore = 0;
+            ball.position.set(0, 0, 0);
+            ballSpeedX = Math.random() > 0.5 ? 0.1 : -0.1;
+            ballSpeedY = Math.random() > 0.5 ? 0.1 : -0.1;
+            document.getElementById('gameOverScreen').style.display = 'none';
+            gameRunning = true;
+            animate();
+        }
+
+        // Keyboard controls
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'w') keys.up = true;
+            if (e.key === 's') keys.down = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'w') keys.up = false;
+            if (e.key === 's') keys.down = false;
+        });
+
+        function animate() {
+            if (!gameRunning) return;
+            requestAnimationFrame(animate);
+
+            // Player paddle movement
+            if (keys.up && playerPaddle.position.y < 6 - paddleHeight / 2) playerPaddle.position.y += 0.2;
+            if (keys.down && playerPaddle.position.y > -(6 - paddleHeight / 2)) playerPaddle.position.y -= 0.2;
+
+            // AI paddle movement
+            if (aiPaddle.position.y < ball.position.y) aiPaddle.position.y += 0.1;
+            if (aiPaddle.position.y > ball.position.y) aiPaddle.position.y -= 0.1;
+
+            // Ball movement
+            ball.position.x += ballSpeedX;
+            ball.position.y += ballSpeedY;
+
+            // Ball collision with top/bottom walls
+            if (ball.position.y + ballRadius > 6 || ball.position.y - ballRadius < -6) {
+                ballSpeedY = -ballSpeedY;
+            }
+
+            // Ball collision with paddles
+            if (ball.position.x - ballRadius < playerPaddle.position.x + paddleWidth / 2 &&
+                ball.position.y < playerPaddle.position.y + paddleHeight / 2 &&
+                ball.position.y > playerPaddle.position.y - paddleHeight / 2) {
+                ballSpeedX = -ballSpeedX;
+            }
+
+            if (ball.position.x + ballRadius > aiPaddle.position.x - paddleWidth / 2 &&
+                ball.position.y < aiPaddle.position.y + paddleHeight / 2 &&
+                ball.position.y > aiPaddle.position.y - paddleHeight / 2) {
+                ballSpeedX = -ballSpeedX;
+            }
+
+            // Scoring
+            if (ball.position.x > 10) {
+                playerScore++;
+                updateScore();
+                resetBall();
+            }
+            if (ball.position.x < -10) {
+                aiScore++;
+                updateScore();
+                resetBall();
+            }
+
+            // Render the scene
+            renderer.render(scene, camera);
+        }
+
+        function resetBall() {
+            ball.position.set(0, 0, 0);
+            ballSpeedX = Math.random() > 0.5 ? 0.1 : -0.1;
+            ballSpeedY = Math.random() > 0.5 ? 0.1 : -0.1;
+        }
+
+        // Initialize the game
+        setupScene();
+    </script>
+</body>
+</html>

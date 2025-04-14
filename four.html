@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Four</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(7, 60px);
+            gap: 5px;
+            background-color: #1a73e8;
+            padding: 10px;
+            border-radius: 10px;
+            margin: 20px;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column-reverse;
+            cursor: pointer;
+        }
+
+        .cell {
+            width: 60px;
+            height: 60px;
+            background-color: white;
+            border-radius: 50%;
+            margin: 2px;
+            transition: background-color 0.3s;
+        }
+
+        .cell.player1 {
+            background-color: #ff4444;
+        }
+
+        .cell.player2 {
+            background-color: #333;
+        }
+
+        .cell.win {
+            box-shadow: 0 0 15px yellow;
+        }
+
+        .status {
+            font-size: 24px;
+            margin: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Connect Four</h1>
+    <div class="status" id="status">Player 1's Turn</div>
+    <div class="board" id="board"></div>
+    <button onclick="resetGame()">Reset Game</button>
+
+    <script>
+        const ROWS = 6;
+        const COLS = 7;
+        let gameBoard = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+        let currentPlayer = 1;
+        let gameActive = true;
+
+        function createBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            for (let col = 0; col < COLS; col++) {
+                const column = document.createElement('div');
+                column.className = 'column';
+                column.addEventListener('click', () => handleColumnClick(col));
+                
+                for (let row = ROWS - 1; row >= 0; row--) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    column.appendChild(cell);
+                }
+                board.appendChild(column);
+            }
+        }
+
+        function handleColumnClick(col) {
+            if (!gameActive || currentPlayer !== 1) return;
+            
+            const row = getLowestEmptyRow(col);
+            if (row !== -1) {
+                placePiece(row, col, currentPlayer);
+                if (checkWin(row, col, currentPlayer)) {
+                    gameActive = false;
+                    document.getElementById('status').textContent = 'Player 1 Wins!';
+                    return;
+                }
+                if (checkTie()) {
+                    gameActive = false;
+                    document.getElementById('status').textContent = "It's a Tie!";
+                    return;
+                }
+                currentPlayer = 2;
+                document.getElementById('status').textContent = "AI's Turn";
+                setTimeout(aiMove, 500);
+            }
+        }
+
+        function aiMove() {
+            // AI logic: Try to win, then block player, then random move
+            let col = findWinningMove(2);
+            if (col === -1) col = findWinningMove(1);
+            if (col === -1) {
+                const priorities = [3, 2, 4, 1, 5, 0, 6];
+                col = priorities.find(c => getLowestEmptyRow(c) !== -1);
+            }
+
+            const row = getLowestEmptyRow(col);
+            if (row !== -1) {
+                placePiece(row, col, 2);
+                if (checkWin(row, col, 2)) {
+                    gameActive = false;
+                    document.getElementById('status').textContent = 'AI Wins!';
+                    return;
+                }
+                if (checkTie()) {
+                    gameActive = false;
+                    document.getElementById('status').textContent = "It's a Tie!";
+                    return;
+                }
+                currentPlayer = 1;
+                document.getElementById('status').textContent = "Player 1's Turn";
+            }
+        }
+
+        function findWinningMove(player) {
+            for (let col = 0; col < COLS; col++) {
+                const row = getLowestEmptyRow(col);
+                if (row === -1) continue;
+                
+                gameBoard[row][col] = player;
+                if (checkWin(row, col, player)) {
+                    gameBoard[row][col] = 0;
+                    return col;
+                }
+                gameBoard[row][col] = 0;
+            }
+            return -1;
+        }
+
+        function placePiece(row, col, player) {
+            gameBoard[row][col] = player;
+            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+            cell.classList.add(player === 1 ? 'player1' : 'player2');
+        }
+
+        function getLowestEmptyRow(col) {
+            for (let row = 0; row < ROWS; row++) {
+                if (gameBoard[row][col] === 0) return row;
+            }
+            return -1;
+        }
+
+        function checkWin(row, col, player) {
+            const directions = [
+                [0, 1],  // Horizontal
+                [1, 0],  // Vertical
+                [1, 1],  // Diagonal down-right
+                [1, -1]  // Diagonal down-left
+            ];
+
+            for (const [dx, dy] of directions) {
+                let count = 1;
+                let winningCells = [[row, col]];
+
+                // Check in positive direction
+                let i = 1;
+                while (
+                    row + i*dx >= 0 && row + i*dx < ROWS &&
+                    col + i*dy >= 0 && col + i*dy < COLS &&
+                    gameBoard[row + i*dx][col + i*dy] === player
+                ) {
+                    winningCells.push([row + i*dx, col + i*dy]);
+                    count++;
+                    i++;
+                }
+
+                // Check in negative direction
+                i = 1;
+                while (
+                    row - i*dx >= 0 && row - i*dx < ROWS &&
+                    col - i*dy >= 0 && col - i*dy < COLS &&
+                    gameBoard[row - i*dx][col - i*dy] === player
+                ) {
+                    winningCells.push([row - i*dx, col - i*dy]);
+                    count++;
+                    i++;
+                }
+
+                if (count >= 4) {
+                    highlightWinner(winningCells);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function highlightWinner(cells) {
+            cells.forEach(([row, col]) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                cell.classList.add('win');
+            });
+        }
+
+        function checkTie() {
+            return gameBoard.every(row => row.every(cell => cell !== 0));
+        }
+
+        function resetGame() {
+            gameBoard = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+            currentPlayer = 1;
+            gameActive = true;
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.className = 'cell';
+            });
+            document.getElementById('status').textContent = "Player 1's Turn";
+        }
+
+        // Initialize the game
+        createBoard();
+    </script>
+</body>
+</html>
